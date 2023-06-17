@@ -12,14 +12,17 @@
 
 ## About Rotation
 
-Rotation ...
+Rotation is a new way to consume music. Allowing you to generate a playlist from any picture, Rotation uses AI to capture the nuances and inflections of your mood perfectly and display its quirks spatially. 
 
 ## Getting started
 
-To begin exploring Rotation, follow these steps:
+To run Rotation locally, follow these steps:
 
 1. Clone the project repository to your local machine
 2. Move to the repository: `cd Rotation`
+3. Copy the contents of your `.env_example` file into your `.env` file, but fill in NEXT_PUBLIC [actually, maybe no env is needed if modal secrets are mentioned]
+4. [TODO STEP ABOUT POETRY]
+5. 
 
 ## How it works
 
