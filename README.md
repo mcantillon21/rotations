@@ -1,18 +1,19 @@
 <p align="center">
-  <h1 align="center">Rotation AI: Image-To-Playlist Generator</h1>
+  <h1 align="center">Rotation: Image-to-Playlist Generator</h1>
   <p align="center">
   <a href="http://rotations.ai"><b>Live Website</b></a>
    | 
   <a href="https://twitter.com/mollycantillon/status/1653610387022176256?s=20"><b>Video Demo</b></a>
   </p>
     <div align="center">
-    <img src="public/rotations.gif" alt="Rotation"  />
+    <img src="public/rotations.gif" alt="Rotation" width="50%" />
   </div>
 </p>
 
-## About Rotation
+## About
 
-Rotation is a new way to consume music. Allowing you to generate a playlist from any picture, Rotation uses AI to capture the nuances and inflections of your mood perfectly and display its quirks spatially. 
+Rotation is a revolutionary approach to music consumption. Generate a playlist from any picture using AI. <br/>
+Capture the nuances and inflections of your mood perfectly and display its quirks spatially. 
 
 ## Getting started
 
@@ -26,9 +27,7 @@ To run Rotation locally, follow these steps:
 
 ## How it works
 
-Rotation uses. 
-
-
+Rotation uses CLIP, GPT-4 and Spotify seed recommendations to transform text or images into curated playlists. 
 
 ## License
 
