@@ -1,20 +1,14 @@
 "use client";
 import Head from "next/head";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
-  Box,
-  Input,
-  Text,
   Button,
   useToast,
-  Center,
-  VStack
 } from "@chakra-ui/react";
 import GradientCanvas from "./components/GradientCanvas";
 import axios from "axios";
 
 import { motion } from "framer-motion";
-import Paywall from "./components/Paywall";
 
 import { ChakraProvider } from '@chakra-ui/react'
 import Visualization from "./components/Visualization";
@@ -23,10 +17,6 @@ import Title from "./components/Title";
 import SearchBar from "./components/SearchBar";
 import GenerateButton from "./components/GenerateButton";
 
-import stripeLib from "stripe";
-
-const stripeSecretKey = process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY;
-
 function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,9 +24,6 @@ function Home() {
   const fileRef = useRef(null);
   const [accessToken, setAccessToken] = useState("");
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [userSubscription, setUserSubscription] = useState(false);
-
   const [plotdataX, setPlotdataX] = useState([]);
   const [plotdataY, setPlotdataY] = useState([]);
   const [plotdataZ, setPlotdataZ] = useState([]);
@@ -48,7 +35,6 @@ function Home() {
   const [playlistURL, setPlaylistURL] = useState("");
 
   const [estimatedTime, setEstimatedTime] = useState(0);
-  const [numSongs, setNumSongs] = useState(0);
 
   const toast = useToast();
 
@@ -121,40 +107,8 @@ function Home() {
         });
     }
 
-    if (username) {
-      fetchNumSongs().then((numSongs) => {
-        setNumSongs(numSongs);
-      });
-    }
-
     setEstimatedTime(getRandomNumber);
   }, []);
-
-  async function fetchNumSongs() {
-    try {
-      // Perform your own logic here to fetch the number of songs for the user
-      // without using Supabase
-      return 0; // Placeholder value, replace with your actual logic
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  useEffect(() => {
-    const checkSubscription = async () => {
-      const isSubscribed = await isUserSubscribed(email);
-      setUserSubscription(isSubscribed);
-    };
-    checkSubscription();
-  }, [email]);
-
-  useEffect(() => {
-    // console.log('access token changed');
-  }, [accessToken]);
-
-  useEffect(() => {
-    // console.log("numSongs changed", numSongs);
-  }, [numSongs]);
 
   function getRandomNumber() {
     let min = 35;
@@ -210,25 +164,39 @@ function Home() {
     }
 
     try {
-      // Perform your own logic here for generating the playlist
-      // without using Supabase
+      const formData = new FormData();	
+      if (fileRef.current) {	
+        formData.append("file", fileRef.current[0], "file");	
+      }	
+      if (query) {	
+        formData.append("query_string", query);	
+      }	
+      const axiosResponse = await axios.post(	
+        "https://mcantillon21--rotation-fastapi-app.modal.run/generate_playlist",	
+        formData,	
+        {	
+          headers: headers_formdata,	
+          params: {	
+            access_token: accessToken,	
+          },	
+        }	
+      );	
 
-      // Update the state with the generated playlist data
-      setPlotKey(plotKey + 1);
-      setPlotdataX(/* generated X data */);
-      setPlotdataY(/* generated Y data */);
-      setPlotdataZ(/* generated Z data */);
-      setPlotdataLabels(/* generated labels */);
-      setPlotdataUris(/* generated URIs */);
-      setTitle(/* generated title */);
+      setPlotKey(plotKey + 1);	
+      setPlotdataX(axiosResponse.data.x);	
+      setPlotdataY(axiosResponse.data.y);	
+      setPlotdataZ(axiosResponse.data.z);	
+      setPlotdataLabels(axiosResponse.data.labels);	
+      setPlotdataUris(axiosResponse.data.uris);	
+      setTitle(axiosResponse.data.title);
 
       // Save the playlist to Spotify
       const form2Data = new FormData();
       formData.append("access_token", accessToken);
-      formData.append("track_uris", JSON.stringify(/* generated URIs */));
-      formData.append("username", username);
-      if (/* generated title */) {
-        formData.append("playlist_title", /* generated title */);
+      formData.append("track_uris", JSON.stringify(axiosResponse.data.uris));	
+      formData.append("username", username);	
+      if (axiosResponse.data.title) {	
+        formData.append("playlist_title", axiosResponse.data.title)
       } else {
         formData.append("playlist_title", "Custom Rotation");
       }
@@ -306,7 +274,6 @@ function Home() {
       })
       .then((response) => {
         setUsername(response.data.display_name);
-        setEmail(response.data.email);
       })
       .catch((error) => {
         toast({
@@ -345,41 +312,6 @@ function Home() {
   };
 
 
-  const isUserSubscribed = async (email) => {
-    const stripe = stripeLib(stripeSecretKey);
-
-    const customers = await stripe.customers.list({ email });
-    try {
-      const customers = await stripe.customers.list({ email: email });
-      for (const customer of customers.data) {
-        const subscriptions = await stripe.subscriptions.list({ customer: customer.id });
-        for (const subscription of subscriptions.data) {
-          if (subscription.status === 'active') {
-            return true;
-          }
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error(error);
-      return false;
-    }
-  }
-
-  const handlePortal = async () => {
-    try {
-      const formData = new FormData();
-      formData.append('email', email);
-      formData.append('access_token', accessToken);
-      const access_token = accessToken;
-      const response = await axios.post('https://mcantillon21--rotation-fastapi-app.modal.run/create-portal-session', formData);
-      window.location.href = response.data.url;
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-
   return (
     <ChakraProvider>
       <div className="flex min-h-screen flex-col items-center relative">
@@ -404,12 +336,9 @@ function Home() {
         >
           {username ? (
             <>
-              <Button backgroundColor="#1DB954" className="text-white">
-                {username} <i className="fa fa-spotify mt-1 ml-2"></i>
+	            <Button backgroundColor="#1DB954" className="text-white">	
+              {username} <i className="fa fa-spotify mt-1 ml-2"></i>	
               </Button>
-              {userSubscription && (
-                <Button variant="link" textColor="white" margin={3} onClick={handlePortal}>My Account</Button>
-              )}
             </>
           ) : (
             <a href="https://mcantillon21--rotation-fastapi-app.modal.run/auth/login">
@@ -426,38 +355,11 @@ function Home() {
             initial={{ opacity: 0, y: 50 }}
             transition={{ duration: 0.5 }}
           >
-            <Title />
-            {numSongs >= 5 && !userSubscription ? ( // if user generated more than 1 songs and not subscribed
-              <Paywall email={email} accessToken={accessToken} />
-            ) : (
-              <>
-                <SearchBar
-                  query={query}
-                  setQuery={setQuery}
-                  fileRef={fileRef}
-                  fileName={fileName}
-                  setFileName={setFileName}
-                  username={username}
-                  toast={toast}
-                />
-                <GenerateButton
-                  loading={loading}
-                  estimatedTime={estimatedTime}
-                  handleGeneratePlaylist={handleGeneratePlaylist}
-                  query={query}
-                />
-                <Visualization
-                  plotdataX={plotdataX}
-                  plotdataY={plotdataY}
-                  plotdataZ={plotdataZ}
-                  plotdataLabels={plotdataLabels}
-                  plotdataUris={plotdataUris}
-                  accessToken={accessToken}
-                  plotKey={plotKey}
-                />
-                <Playlist plotdataX={plotdataX} title={title} playlistURL={playlistURL} />
-              </>
-            )}
+          <Title/>	
+            <SearchBar query={query} setQuery={setQuery} fileRef={fileRef} fileName={fileName} setFileName={setFileName} username={username} toast={toast} />	
+            <GenerateButton loading={loading} estimatedTime={estimatedTime} handleGeneratePlaylist={handleGeneratePlaylist} query={query}/>	
+            <Visualization plotdataX={plotdataX} plotdataY={plotdataY} plotdataZ={plotdataZ} plotdataLabels={plotdataLabels} plotdataUris={plotdataUris} accessToken={accessToken} plotKey={plotKey}/>	
+            <Playlist plotdataX={plotdataX} tpitle={title} playlistURL={playlistURL}/>
           </motion.div>
         </main>
 

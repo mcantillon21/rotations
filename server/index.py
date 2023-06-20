@@ -1,21 +1,22 @@
 import io
 import json
 import os
-import random
-import string
 import base64
 import requests
 from urllib.parse import urlencode
-from tempfile import NamedTemporaryFile
 import modal
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 
-from modal import Image, Stub, asgi_app, web_endpoint
+from modal import Image, Stub, asgi_app
 from embeddings import get_embeddings, auth_spotify
 from replicate_captioning import run_replicate
+
+from PIL import Image
+from io import BytesIO, BufferedReader
+import json
 
 import stripe
 
@@ -127,24 +128,35 @@ def graph_saved_songs(access_token: str):
     res = {'x': x, 'y': y, 'z': z, 'labels': track_names, 'uris': track_uris}
     return JSONResponse(content=res)
 
+def call_gpt(prompt: str, url: str, headers: dict):
+    data = {
+        "model": "gpt-4",
+        "messages": [{
+            "role": "user", 
+            "content": (f"Generate a 5-songs playlist that best represents this: "
+                        f"{prompt}. Don't take literal semantic meaning, only take "
+                        "the vibe and feeling of the overall picture. Don't include an "
+                        "explanation, quotes, numbers or special characters. To begin, "
+                        "provide one word that summarizes the mood well, then separate "
+                        "each song with a new line and format as song - artist.")
+        }],
+        "temperature": 0.1
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    return response.json()['choices'][0]['message']['content']
+
 @app.post('/generate_playlist')
 async def generate_playlist(access_token: str, query_string: str = Form(None), file: UploadFile = File(None)):
-    prompt = ''
     url = "https://api.openai.com/v1/chat/completions"
-    OPENAI_SECRET_KEY = os.environ["OPENAI_API_KEY"]
-    my_headers = {
+    headers = {
         'Content-Type' : 'application/json',
-        'Authorization' : f'Bearer {OPENAI_SECRET_KEY}',
+        'Authorization' : f'Bearer {os.environ["OPENAI_API_KEY"]}',
         'Access-Control-Allow-Origin': '*'
     }
+    
     if file:
-        from PIL import Image
-        from io import BytesIO, BufferedReader
-
         img_file = extract_stream(file)
         img = Image.open(img_file)
-
-        # Convert image to RGB format
         if img.mode == 'RGBA':
             img = img.convert('RGB')
         
@@ -152,43 +164,30 @@ async def generate_playlist(access_token: str, query_string: str = Form(None), f
         img.save(b_handle, format="JPEG")
         b_handle.seek(0)
         b_handle.name = "temp.png"
-        expected_img_data = BufferedReader(b_handle)
-                
-        prompt = run_replicate(expected_img_data)
-        print(prompt)
-                
-        # prompt = 'a woman jumping on top of a bed in a bedroom, a screenshot, inspired by Mary Elizabeth Price, trending on pinterest, 0 0 s nostalgia, still image from the movie, teen magazine cover, low res, as though she is dancing, ecstatic, victory, reese witherspoon face, actual photo, early morning mood'
+        img_data = BufferedReader(b_handle)
         
-        data = {
-            "model": "gpt-4",
-            "messages": [{"role": "user", "content": f"Generate a 5-songs playlist that best represents this: {prompt}. Don't take literal semantic meaning, only take the vibe and feeling of the overall picture. Don't include an explanation, quotes, numbers or special characters. To begin, provide one word that summarizes the mood well, then separate each song with a new line and format as song - artist."}],
-            "temperature": 0.1
-        }
-        response = requests.post(url, headers=my_headers, data=json.dumps(data))
-        content = response.json()['choices'][0]['message']['content']
+        prompt = run_replicate(img_data)
+        content = call_gpt(prompt, url, headers)
+        
         title = content.split('\n')[0]
         song_list = content.split('\n')[2:]
-            
+                            
     elif query_string:
         prompt = query_string
+        content = call_gpt(prompt, url, headers)
         
-        # genres =  ["acoustic", "afrobeat", "alt-rock", "alternative", "ambient", "anime", "black-metal", "bluegrass", "blues", "bossanova", "brazil", "breakbeat", "british", "cantopop", "chicago-house", "children", "chill", "classical", "club", "comedy", "country", "dance", "dancehall", "death-metal", "deep-house", "detroit-techno", "disco", "disney", "drum-and-bass", "dub", "dubstep", "edm", "electro", "electronic", "emo", "folk", "forro", "french", "funk", "garage", "german", "gospel", "goth", "grindcore", "groove", "grunge", "guitar", "happy", "hard-rock", "hardcore", "hardstyle", "heavy-metal", "hip-hop", "holidays", "honky-tonk", "house", "idm", "indian", "indie", "indie-pop", "industrial", "iranian", "j-dance", "j-idol", "j-pop", "j-rock", "jazz", "k-pop", "kids", "latin", "latino", "malay", "mandopop", "metal", "metal-misc", "metalcore", "minimal-techno", "movies", "mpb", "new-age", "new-release", "opera", "pagode", "party", "philippines-opm", "piano", "pop", "pop-film", "post-dubstep", "power-pop", "progressive-house", "psych-rock", "punk", "punk-rock", "r-n-b", "rainy-day", "reggae", "reggaeton", "road-trip", "rock", "rock-n-roll", "rockabilly", "romance", "sad", "salsa", "samba", "sertanejo", "show-tunes", "singer-songwriter", "ska", "sleep", "songwriter", "soul", "soundtracks", "spanish", "study", "summer", "swedish", "synth-pop", "tango", "techno", "trance", "trip-hop", "turkish", "work-out", "world-music"]
-        data = {
-            "model": "gpt-4",
-            "messages": [{"role": "user", "content": f"Generate a 5-songs playlist that best represents this: {prompt}. Don't take literal semantic meaning, only take the vibe and feeling of the overall phrase. Don't include an explanation, quotes, numbers or special characters. Separate each song with a new line and format as song - artist."}],
-            "temperature": 0.1
-        }
-        response = requests.post(url, headers=my_headers, data=json.dumps(data))
-        content = response.json()['choices'][0]['message']['content']
         song_list = content.split('\n')
         title = query_string
-        
-    # song_list = ['Kokomo - The Beach Boys', 'Island in the Sun - Weezer', 'Banana Pancakes - Jack Johnson', 'Under the Boardwalk - The Drifters', 'Margaritaville - Jimmy Buffett', 'Three Little Birds - Bob Marley', 'Summer Breeze - Seals and Crofts', 'Soak Up the Sun - Sheryl Crow', "Surfin' USA - The Beach Boys", 'Walking on Sunshine - Katrina and the Waves', 'California Girls - The Beach Boys', "Doin' Time - Lana Del Rey", 'Red Red Wine - UB40', 'Jamming - Bob Marley', 'Escape (The Piña Colada Song) - Rupert Holmes', 'I Can See Clearly Now - Johnny Nash', 'Good Vibrations - The Beach Boys', 'Sun is Shining - Bob Marley', "California Dreamin' - The Mamas and the Papas", 'Here Comes the Sun - The Beatles']
-    (x, y, z, track_names, track_uris)= get_embeddings(access_token, song_list, True)   
-    
-    print('GENERATE PLAYLIST GENERATED', track_names, track_uris)
-    
-    res = {'x': x, 'y': y, 'z': z, 'labels': track_names, 'uris': track_uris, 'title': title}
+    (x, y, z, track_names, track_uris) = get_embeddings(access_token, song_list, True)   
+
+    res = {
+        'x': x, 
+        'y': y, 
+        'z': z, 
+        'labels': track_names, 
+        'uris': track_uris, 
+        'title': title
+    }
     
     return JSONResponse(content=res)
 
