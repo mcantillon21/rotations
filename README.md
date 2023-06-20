@@ -8,7 +8,7 @@ Generate a playlist from any picture using AI. Capture the nuances and inflectio
 
 Leveraging [CLIP](https://replicate.com/pharmapsychotic/clip-interrogator), [GPT-4](https://openai.com/research/gpt-4) and [Spotify seed recommendations](https://developer.spotify.com/documentation/web-api/reference/get-recommendations), Rotation is able to transform text or images into curated playlists. Then, Rotation uses Principal Component Analysis (PCA) to reduce eight audio features of each song, such as liveness, energy, and tempo, to a dimensionality of three.
 
-[![Rotation](public/diagram.png)]
+[![Rotation](public/preview.png)]
 
 ## Running Locally
 
