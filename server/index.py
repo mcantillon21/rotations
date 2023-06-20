@@ -18,8 +18,6 @@ from PIL import Image
 from io import BytesIO, BufferedReader
 import json
 
-import stripe
-
 app = FastAPI()
 
 app.add_middleware(
@@ -39,30 +37,7 @@ image = Image.debian_slim().pip_install(
     "plotly",
     "spotipy",
     "openai", 
-    "stripe"
 )
-
-@app.post('/create-portal-session')
-async def customer_portal(request: Request):
-    stripe.api_key = os.environ["STRIPE_API_KEY"]
-    form_data = await request.form()
-    email = form_data.get('email')
-    access_token = form_data.get('access_token')
-    
-    customers = stripe.Customer.list(email=email, limit=1).data
-    
-    if customers:
-        customer = customers[0]
-    else:
-        customer = stripe.Customer.create(email=email)
-    
-    portalSession = stripe.billing_portal.Session.create(
-        customer=customer.id,
-        # return_url='http://localhost:3000/?access_token=' + access_token,
-        return_url='http://rotations.ai/?access_token=' + access_token,
-    )
-    
-    return {'url': portalSession.url}
 
 @app.get("/")
 def root():
@@ -238,7 +213,6 @@ async def save_to_spotify(request: Request):
 @stub.function(image=image, gpu="any", secrets=[
     modal.Secret.from_name("openai-api-key"),
     modal.Secret.from_name("spotify-secrets"),
-    modal.Secret.from_name("stripe-secret"), 
     modal.Secret.from_name("replicate-key")
 ])
 @asgi_app()
